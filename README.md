@@ -1,54 +1,52 @@
 # PRTextractor
 
-## ¿Qué es PRTextractor?
+## What is PRTextractor?
 
-**PRTextractor** es una herramienta escrita en Go para Windows que extrae el **PRT cookie** (`x-ms-RefreshTokenCredential`) de dispositivos unidos a **Microsoft Entra ID (Azure AD)**. Este cookie puede utilizarse en ejercicios de pentesting para obtener tokens de acceso de Azure sin conocer las credenciales del usuario, siempre dentro de un entorno autorizado.
+**PRTextractor** is a Go-based tool for Windows that extracts the **PRT cookie** (`x-ms-RefreshTokenCredential`) from devices joined to **Microsoft Entra ID (Azure AD)**. This cookie can be used in pentesting exercises to obtain Azure access tokens without knowing the user's credentials, always within an authorized environment.
 
-### ¿Qué es el PRT?
+### What is the PRT?
 
-El **Primary Refresh Token (PRT)** es una credencial especial que Windows almacena en dispositivos unidos a Entra ID. Permite a los usuarios acceder a recursos de Microsoft 365 y Azure de forma transparente (Single Sign-On). En ejercicios de Red Team, la extracción del PRT cookie puede permitir la suplantación de sesiones de usuario sin necesidad de phishing ni credenciales.
+The **Primary Refresh Token (PRT)** is a special credential that Windows stores on Entra ID-joined devices. It allows users to seamlessly access Microsoft 365 and Azure resources (Single Sign-On). In Red Team exercises, extracting the PRT cookie can allow session impersonation without needing phishing or credentials.
 
----
+## How does it work?
 
-## ¿Cómo funciona?
-
-PRTextractor sigue el flujo estándar que usa el propio sistema operativo Windows:
+PRTextractor follows the standard flow used by the Windows OS itself:
 
 ```
-[1] Leer registro de Windows
+[1] Read Windows Registry
         └─> HKLM\SYSTEM\...\CloudDomainJoin\JoinInfo  →  TenantID + DeviceID
         └─> HKLM\SOFTWARE\...\AAD\Package             →  TpmProtected
 
-[2] Obtener Nonce
+[2] Obtain Nonce
         └─> POST https://login.microsoftonline.com/<TenantID>/oauth2/token
             body: grant_type=srv_challenge
 
-[3] Llamada COM a IProofOfPossessionCookieInfoManager
+[3] COM call to IProofOfPossessionCookieInfoManager
         └─> GetCookieInfoForUri(login.microsoftonline.com/...?sso_nonce=<nonce>)
-            └─> Devuelve la cookie: x-ms-RefreshTokenCredential
+            └─> Returns the cookie: x-ms-RefreshTokenCredential
 
-[4] Output en formato JSON (compatible con EditThisCookie / Burp Suite)
+[4] Output in JSON format (compatible with EditThisCookie / Burp Suite)
 ```
 
-## Uso del cookie extraído
+## Using the extracted cookie
 
-El JSON generado es compatible con extensiones de gestión de cookies para navegadores como **EditThisCookie** o **Cookie-Editor**. Para usarlo en un ejercicio de pentesting:
+The generated JSON is compatible with browser cookie management extensions such as **EditThisCookie** or **Cookie-Editor**. To use it in a pentesting exercise:
 
-1. Ejecuta PRTextractor en el dispositivo objetivo.
-2. Copia el JSON resultante.
-3. En tu navegador, abre una pestaña en `https://login.microsoftonline.com`.
-4. Importa el cookie mediante la extensión de gestión de cookies.
-5. Accede a `https://portal.azure.com` o `https://myapps.microsoft.com` deberías obtener una sesión autenticada como el usuario del dispositivo.
+1. Run PRTextractor on the target device.
+2. Copy the resulting JSON.
+3. In your browser, open a tab at `https://login.microsoftonline.com`.
+4. Import the cookie using your cookie management extension.
+5. Navigate to `https://portal.azure.com` or `https://myapps.microsoft.com` — you should get an authenticated session as the device's user.
 
-## Técnica
+## Technique
 
-PRTextractor abusa del flujo legítimo de SSO de Windows:
+PRTextractor abuses the legitimate Windows SSO flow:
 
-- **`IProofOfPossessionCookieInfoManager`** es una interfaz COM documentada por Microsoft que usan navegadores como Edge para obtener cookies de SSO automáticamente. PRTextractor invoca esta interfaz directamente.
-- La comunicación con `login.microsoftonline.com` para obtener el nonce se realiza a través de **WinHTTP** (sin dependencias externas de red).
-- No se realiza ninguna inyección de código, volcado de LSASS ni manipulación del kernel.
+- **`IProofOfPossessionCookieInfoManager`** is a COM interface documented by Microsoft, used by browsers like Edge to automatically obtain SSO cookies. PRTextractor invokes this interface directly.
+- Communication with `login.microsoftonline.com` to obtain the nonce is done via **WinHTTP** (no external network dependencies).
+- No code injection, LSASS dumping, or kernel manipulation is performed.
 
-### Referencias
+### References
 - [Abusing Azure AD SSO with the Primary Refresh Token - dirkjanm.io](https://dirkjanm.io/abusing-azure-ad-sso-with-the-primary-refresh-token/)
 - [MS-OAPXBC: OAuth 2.0 Protocol Extensions - Microsoft](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-oapxbc/)
 - [IProofOfPossessionCookieInfoManager - Microsoft Docs](https://learn.microsoft.com/en-us/windows/win32/api/proofofpossessioncookieinfo/)
